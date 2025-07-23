@@ -181,18 +181,36 @@ interface FeeStrategy {
     double calculateFee(ParkingTicket ticket);
 }
 
-class VehicleBasedFeeStrategy implements FeeStrategy {
-    private final Map<VehicleType, Double> hourlyRate = Map.of(
-            VehicleType.CAR, 20.0,
-            VehicleType.BIKE, 10.0,
-            VehicleType.TRUCK, 30.0
-    );
+class HourlyBasedFeeStrategy implements FeeStrategy {
+    @Override
     public double calculateFee(ParkingTicket ticket) {
-        long duration = ticket.getEntryTimestamp() - ticket.getExitTimestamp();
-        long hours = (duration / (1000 * 60 * 60)) + 1;
-        return hours * hourlyRate.get(ticket.getVehicle().getType());
+        long duration = ticket.getExitTimestamp() - ticket.getEntryTimestamp();
+        long hours = ((duration + (1000 * 60 * 60) - 1) / (1000 * 60 * 60));
+
+        VehicleType type = ticket.getVehicle().getType();
+        return switch(type) {
+            case CAR -> hours * 20.0;
+            case BIKE -> hours * 10.0;
+            case TRUCK -> hours * 30.0;
+        };
     }
 }
+
+class MinuteBasedFeeStrategy implements FeeStrategy {
+    @Override
+    public double calculateFee(ParkingTicket ticket) {
+        long duration = ticket.getExitTimestamp() - ticket.getEntryTimestamp();
+        long hours = ((duration + (1000 * 60) - 1) / (1000 * 60));
+
+        VehicleType type = ticket.getVehicle().getType();
+        return switch(type) {
+            case CAR -> hours * 0.5;
+            case BIKE -> hours * 0.2;
+            case TRUCK -> hours * 1.0;
+        };
+    }
+}
+
 
 // 8. ParkingFloor Class
 class ParkingFloor {
@@ -256,7 +274,7 @@ class ParkingLot {
     private final List<ParkingFloor> floors = new ArrayList<>();
     private final Map<String, ParkingTicket> activeTickets = new ConcurrentHashMap<>();
     private final List<ParkingLotObserver> observers = new ArrayList<>();
-    private FeeStrategy feeStrategy = new VehicleBasedFeeStrategy();
+    private FeeStrategy feeStrategy = new HourlyBasedFeeStrategy();
 
     private final Map<VehicleType, Set<ParkingSpotType>> allowedTypes = Map.of(
             VehicleType.CAR, Set.of(ParkingSpotType.COMPACT, ParkingSpotType.LARGE),
@@ -324,7 +342,7 @@ public class ParkingLotMain {
             ParkingSpotFactory.createSpot(ParkingSpotType.LARGE, "F1-L1", 3, 1)
         ));
 
-        manager.configure(List.of(floor1), new VehicleBasedFeeStrategy());
+        manager.configure(List.of(floor1), new HourlyBasedFeeStrategy());
 
         Vehicle car = new Car("CAR123");
         Vehicle bike = new Bike("BIKE123");
